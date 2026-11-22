@@ -150,6 +150,10 @@ class SelfdriveD:
     from openpilot.starpilot.car.tesla.stock_events import StockCruiseConsumer
     self.tesla_stock_consumer = StockCruiseConsumer(self.CP)
     self.tesla_stock_alerts = []
+    from openpilot.starpilot.car.hyundai.stock_attention import StockAttention, attention_bus
+    daw_bus = attention_bus(self.CP)
+    self.stock_attention = StockAttention(daw_bus) if daw_bus is not None else None
+    self.stock_attention_sock = messaging.sub_sock('can', conflate=False) if self.stock_attention is not None else None
 
     self.pose_calibrator = PoseCalibrator()
     self.calibrated_pose: Pose | None = None
@@ -1185,6 +1189,21 @@ class SelfdriveD:
     alerts.extend(alert for alert in getattr(self, 'tesla_stock_alerts', [])
                   if alert.event_type in self.state_machine.current_alert_types)
     now_ns = time.monotonic_ns()
+    if getattr(self, 'stock_attention', None) is not None:
+      from openpilot.starpilot.car.hyundai.stock_attention import ALERT_TYPE as STOCK_ATTENTION
+      assist_active = (self.active or self.aol_axis_decision.lateral_active) and CS.canValid and not CS.canTimeout
+      level = self.stock_attention.poll(lambda: messaging.recv_one_or_none(self.stock_attention_sock), active=assist_active)
+      if not assist_active:
+        clear_event_types.add(STOCK_ATTENTION)
+      elif level is not None:
+        critical = level == 1
+        alert = Alert(f"Vehicle Attention Level {level}", "Kia / Hyundai attention warning" if critical else "",
+                      log.SelfdriveState.AlertStatus.normal, log.SelfdriveState.AlertSize.small,
+                      AlertPriority.LOWER if critical else AlertPriority.LOWEST, car.CarControl.HUDControl.VisualAlert.none,
+                      log.SelfdriveState.AudibleAlert.prompt if critical else log.SelfdriveState.AudibleAlert.none,
+                      3. if critical else 2.)
+        alert.alert_type, alert.event_type = f'{STOCK_ATTENTION}/{level}', STOCK_ATTENTION
+        alerts.append(alert)
     drive = int(self.sm['deviceState'].startedMonoTime) if self.sm['deviceState'].started else 0
     from openpilot.starpilot.audio.blindspot_alert import ALERT_TYPE as BSM_ALERT, blindspot_alert
     loud, without_lateral = getattr(self, 'blindspot_alert_settings', (False, False))
