@@ -12,6 +12,7 @@ def supported_cp(cp):
 
 class PalisadeTorquePolicy(HKGShapedTorquePolicy):
   FACTOR_MULT = shaping.PALISADE_BASE_LAT_ACCEL_FACTOR_MULT
+  LOG_PALISADE_DIAGNOSTIC = True
   supported_cp = staticmethod(supported_cp)
 
   def feedforward(self, value, setpoint, jerk, speed):

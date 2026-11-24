@@ -1004,6 +1004,10 @@ class Controls:
     )
     from openpilot.starpilot.lateral.applied_tuning import write_applied_tuning
     write_applied_tuning(feedback.starpilotLateralState, self.LaC, getattr(self, 'torque_host', None))
+    policy = getattr(getattr(self.LaC, 'starpilot_extension', None), 'policy', None)
+    diagnostic = getattr(policy, 'palisade_diagnostic', None)
+    if diagnostic is not None:
+      feedback.starpilotLateralState.palisadeDiagnostic = diagnostic
     automatic = getattr(self, 'global_learning', None)
     if automatic is not None:
       try:

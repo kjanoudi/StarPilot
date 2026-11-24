@@ -170,6 +170,7 @@ def test_additive_applied_tuning_preserves_defaults_and_incumbent_relay(historic
   incumbent = original.to_dict()
   with custom.StarPilotLateralState.from_bytes(original.to_bytes()) as decoded:
     assert not decoded._has('torqueTuning')
+    assert not decoded._has('palisadeDiagnostic')
     assert decoded.torqueTuning.to_dict() == {
       'version': 0, 'factor': 0., 'friction': 0., 'manualFactor': False, 'manualFriction': False, 'learned': False}
     current = decoded.as_builder()
@@ -177,6 +178,8 @@ def test_additive_applied_tuning_preserves_defaults_and_incumbent_relay(historic
   current.trackingApplication.version = 1
   current.torqueTuning = {'version': 1, 'factor': 2.5, 'friction': .125,
                           'manualFactor': manual, 'manualFriction': manual, 'learned': not manual}
+  current.palisadeDiagnostic = {'feedforwardBeforeFriction': .125, 'frictionCompensation': -.25,
+                                'torqueBeforeOutputShaping': -.5, 'safetyLimited': True, 'integratorFrozen': True}
   expected = current.to_dict()
   with historical.StarPilotLateralState.from_bytes(current.to_bytes()) as old:
     assert old.to_dict() == incumbent
@@ -187,14 +190,14 @@ def test_additive_applied_tuning_preserves_defaults_and_incumbent_relay(historic
 
 @pytest.mark.parametrize(('before', 'after'), [
   ('torqueTuning @13 :TorqueTuning;', 'torqueTuning @13 :LaneCentering;'),
-  ('torqueTuning @13 :TorqueTuning;', 'torqueTuning @13 :TorqueTuning; unreviewed @14 :Bool;'),
+  ('palisadeDiagnostic @14 :PalisadeDiagnostic;', 'palisadeDiagnostic @14 :PalisadeDiagnostic; unreviewed @15 :Bool;'),
   ('factor @1 :Float64;', 'factor @1 :Float32;'),
   ('version @0 :UInt16;', 'version @0 :UInt16 = 1;'),
   ('learned @5 :Bool;', 'learned @5 :Bool; unreviewed @6 :Bool;'),
 ])
 def test_reviewed_applied_tuning_rejects_other_schema_changes(historical, reviewed_torque_tuning, tmp_path, before, after):
   source = Path(CEREAL_PATH, 'custom.capnp').read_text()
-  if before.startswith('torqueTuning'):
+  if before.startswith(('torqueTuning', 'palisadeDiagnostic')):
     assert source.count(before) == 1
     changed_source = source.replace(before, after)
   else:

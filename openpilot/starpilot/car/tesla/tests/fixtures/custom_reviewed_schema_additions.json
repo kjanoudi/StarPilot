@@ -462,7 +462,7 @@
       },
       "new_storage": {
         "dataWordCount": 4,
-        "pointerCount": 6,
+        "pointerCount": 7,
         "preferredListEncoding": "inlineComposite",
         "isGroup": false,
         "discriminantCount": 0,
@@ -527,6 +527,26 @@
           "discriminantValue": 65535,
           "ordinal": {
             "explicit": 13
+          }
+        },
+        {
+          "slot": {
+            "offset": 6,
+            "type": {
+              "struct": {
+                "typeId": 17826573714260061582
+              }
+            },
+            "defaultValue": {
+              "schemaValueHex": "00000000040000000000000002000100100000000000000000000000000000000000000000000000"
+            },
+            "hadExplicitDefault": false
+          },
+          "name": "palisadeDiagnostic",
+          "codeOrder": 14,
+          "discriminantValue": 65535,
+          "ordinal": {
+            "explicit": 14
           }
         }
       ]

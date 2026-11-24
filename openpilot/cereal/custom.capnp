@@ -889,6 +889,16 @@ struct StarPilotLateralState @0xc2243c65e0340384 {
   feedbackConsumption @11 :FeedbackConsumption;
   trackingApplication @12 :LiveTrackingApplication;
   torqueTuning @13 :TorqueTuning;
+  palisadeDiagnostic @14 :PalisadeDiagnostic;
+
+  struct PalisadeDiagnostic {
+    feedforwardBeforeFriction @0 :Float32;
+    frictionCompensation @1 :Float32;
+    torqueBeforeOutputShaping @2 :Float32;
+    safetyLimited @3 :Bool;
+    curvatureLimited @4 :Bool;
+    integratorFrozen @5 :Bool;
+  }
 
   struct TorqueTuning {
     version @0 :UInt16;

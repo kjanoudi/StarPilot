@@ -701,19 +701,23 @@ class ModelManager:
       if action in ("download", "download_all", "refresh_manifest"):
         if self.worker is not None and self.worker.is_alive():
           raise ModelError("A model download is already running")
-        if action == "download" and (set(payload) - {"model", "allowGpuWithoutGpu", "variant"} or
-                                     not isinstance(payload.get("model"), str) or payload["model"] not in catalog(self.root)):
-          raise ModelError("Unknown model download")
-        if action != "download" and set(payload) - {"allowGpuWithoutGpu"}:
+        if action == "download":
+          mid = payload.get("model")
+          if set(payload) - {"model", "allowGpuWithoutGpu", "variant"} or not isinstance(mid, str):
+            raise ModelError("Unknown model download")
+          entries = catalog(self.root)
+          if mid not in entries:
+            raise ModelError("Unknown model download")
+        elif set(payload) - {"allowGpuWithoutGpu"}:
           raise ModelError("Invalid download request")
         if "allowGpuWithoutGpu" in payload and type(payload["allowGpuWithoutGpu"]) is not bool:
           raise ModelError("Invalid GPU download preference")
         variant = payload.get("variant", "standard")
         if variant not in ("standard", "amd"):
           raise ModelError("Unknown model artifact variant")
-        if variant == "amd" and not artifact_entry(payload["model"], catalog(self.root), "amd").get("artifact_sha256"):
+        if variant == "amd" and not artifact_entry(mid, entries, "amd").get("artifact_sha256"):
           raise ModelError("This model has no eGPU variant for this software version yet")
-        if (action == "download" and catalog(self.root)[payload["model"]].get("uses_external_gpu", False) and
+        if (action == "download" and entries[mid].get("uses_external_gpu", False) and
             not self.gpu_present() and not payload.get("allowGpuWithoutGpu")):
           raise ModelError("Connect Chestnut or choose to download for later")
         with state_lock(self.root):

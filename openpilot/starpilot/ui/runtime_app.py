@@ -1016,11 +1016,12 @@ class StarShellSession:
       elif row.key == "models:active" and index in (0, 1):
         self._model_open(("models:pick:small", "models:pick:big")[index])
       else:
-        intent = model_row_intent(self.model_manager_snapshot(fresh=True), self.model_page, row.key, index)
+        data = self.model_manager_snapshot(fresh=True)
+        intent = model_row_intent(data, self.model_page, row.key, index)
         if intent is None or intent[0] != row.actions[index][0]:
           self._unavailable("model list changed; try again")
         else:
-          self._model_do(*intent[1:])
+          self._model_do(*intent[1:], data=data)
     elif row is None or row not in state.rows:
       if action.kind == "details" and row is None:
         self._feature_details("models", action)
@@ -1053,11 +1054,13 @@ class StarShellSession:
     self.input.cancel()
     gui_app.push_widget(dialog)
 
-  def _model_do(self, action: str, model_id: str = "", profile: str = "", confirmed: bool = False) -> None:
+  def _model_do(self, action: str, model_id: str = "", profile: str = "", confirmed: bool = False,
+                *, data: dict | None = None) -> None:
     from openpilot.system.ui.lib.application import gui_app
     from openpilot.system.ui.widgets import DialogResult
     from openpilot.system.ui.widgets.confirm_dialog import ConfirmDialog
-    data = self.model_manager_snapshot(fresh=True)
+    if data is None:
+      data = self.model_manager_snapshot(fresh=True)
     model = next((m for m in data.get("models", ()) if m.get("value") == model_id), None)
     needs_gpu = model_needs_gpu(data, action, model)
     if not confirmed and (action == "delete" or needs_gpu):

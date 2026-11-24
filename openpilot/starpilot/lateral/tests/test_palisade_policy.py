@@ -67,12 +67,26 @@ def test_actual_selected_controller_output_and_inactive_recovery(topology):
                   for bound in (controller.pid.pos_limit, controller.pid.neg_limit))
       assert abs(torque) <= limit + 1e-6
       assert trace.active
+  policy = controller.starpilot_extension.policy
+  event = log.Event.new_message()
+  feedback = event.init('starpilotLateralState')
+  feedback.palisadeDiagnostic = policy.palisade_diagnostic
+  diagnostic = feedback.palisadeDiagnostic
+  assert abs(diagnostic.frictionCompensation) > 0.001
+  assert trace.f == pytest.approx(diagnostic.feedforwardBeforeFriction + diagnostic.frictionCompensation, abs=1e-7)
+  assert trace.output / diagnostic.torqueBeforeOutputShaping < 1.
+  controller.update(True, state, vm, parameters, True, .0002, False, .2)
+  assert policy.palisade_diagnostic['safetyLimited'] and not policy.palisade_diagnostic['curvatureLimited']
+  assert policy.palisade_diagnostic['integratorFrozen']
+  controller.update(True, state, vm, parameters, False, .0002, True, .2)
+  assert policy.palisade_diagnostic['curvatureLimited'] and not policy.palisade_diagnostic['safetyLimited']
   with patch.object(controller.pid, 'update', wraps=controller.pid.update) as update:
     state.steeringPressed = True
     controller.update(True, state, vm, parameters, False, .0002, False, .2)
     assert update.call_args.kwargs['freeze_integrator']
   torque, _, trace = controller.update(False, state, vm, parameters, False, .0002, False, .2)
   assert torque == 0 and not trace.active and controller.pid.i == 0
+  assert policy.palisade_diagnostic is None
   state.steeringPressed = False
   assert math.isfinite(controller.update(True, state, vm, parameters, False, .0002, False, .2)[0])
 

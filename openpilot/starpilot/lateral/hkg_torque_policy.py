@@ -39,6 +39,7 @@ def supported_torque_cp(cp, vehicles):
 
 class HKGShapedTorquePolicy:
   FACTOR_MULT = 1.0
+  LOG_PALISADE_DIAGNOSTIC = False
 
   def __init__(self, parent, cp):
     if not self.supported_cp(cp):
@@ -56,6 +57,7 @@ class HKGShapedTorquePolicy:
     self.previous_measurement = 0.0
     self.previous_setpoint = 0.0
     self.previous_pressed = False
+    self.palisade_diagnostic = None
 
   def feedforward_context(self, value, setpoint, jerk, measurement, speed):
     return self.feedforward(value, setpoint, jerk, speed)
@@ -74,6 +76,7 @@ class HKGShapedTorquePolicy:
 
   def update(self, active, cs, vm, params, safety_limited, curvature, curvature_limited, delay):
     parent = self.parent
+    self.palisade_diagnostic = None
     pid_log = log.ControlsState.LateralTorqueState.new_message()
     pid_log.version = 2
     measurement = -vm.calc_curvature(math.radians(cs.steeringAngleDeg - params.angleOffsetDeg), cs.vEgo, params.roll) * cs.vEgo**2
@@ -116,16 +119,25 @@ class HKGShapedTorquePolicy:
     ff, threshold = auto_stages.apply_stages(parent, cs, setpoint, jerk, ff, threshold,
       active=active, limited=safety_limited or curvature_limited, curvature_limited=curvature_limited)
     selected_friction = friction_scale * parent.friction(error + JERK_GAIN * friction_jerk, deadzone, threshold, cs, setpoint)
-    ff += auto_stages.apply_selected_friction(parent, cs, setpoint, float(selected_friction),
+    friction = auto_stages.apply_selected_friction(parent, cs, setpoint, float(selected_friction),
       active=active, limited=safety_limited or curvature_limited, curvature_limited=curvature_limited)
     if cs.vEgo < self.low_speed_reset_threshold:
       parent.pid.reset()
     freeze = safety_limited or cs.steeringPressed or cs.vEgo < self.low_speed_reset_threshold or unwind
     pid_log.error = float(self.pid_error_context(error))
     output = parent.torque_from_lateral_accel(
-      parent.pid.update(pid_log.error, error_rate=-rate, speed=cs.vEgo, feedforward=ff, freeze_integrator=freeze), parent.torque_params
+      parent.pid.update(pid_log.error, error_rate=-rate, speed=cs.vEgo, feedforward=ff + friction, freeze_integrator=freeze), parent.torque_params
     )
     output = apply_turn_assist(parent, cs, vm, params, curvature, output)
+    if self.LOG_PALISADE_DIAGNOSTIC:
+      self.palisade_diagnostic = {
+        'feedforwardBeforeFriction': float(ff),
+        'frictionCompensation': float(friction),
+        'torqueBeforeOutputShaping': float(-output),
+        'safetyLimited': bool(safety_limited),
+        'curvatureLimited': bool(curvature_limited),
+        'integratorFrozen': bool(freeze),
+      }
     output = self.output_context(output, setpoint, jerk, measurement, cs.vEgo)
     self.previous_pressed = cs.steeringPressed
     pid_log.active = True

@@ -146,6 +146,21 @@ class ModelManagerTest(unittest.TestCase):
     self.assertEqual(selected.small_path.read_bytes(), self.data)
     self.assertTrue(all('/v26/' in u or 'model_names_v26.json' in u for u in self.urls))
 
+  def test_single_download_admits_before_parked_evidence_expires(self):
+    elapsed_ms = 0
+
+    def slow_catalog(root):
+      nonlocal elapsed_ms
+      elapsed_ms += 55
+      return catalog(root)
+
+    action_thread = threading.current_thread()
+    self.manager.parked = lambda: threading.current_thread() is not action_thread or 195 + elapsed_ms < 300
+    with patch('openpilot.starpilot.models.manager.catalog', side_effect=slow_catalog):
+      self.download()
+
+    self.assertEqual(self.manager.progress, 'Downloaded!')
+
   def test_corruption_never_publishes_or_selects(self):
     self.bad = True
     self.download()
