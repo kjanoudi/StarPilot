@@ -65,6 +65,9 @@ class HKGShapedTorquePolicy:
   def friction_context(self, setpoint, jerk, measurement, speed):
     return self.friction(setpoint, jerk, speed)
 
+  def shape_friction_compensation(self, value, setpoint):
+    return value
+
   def jerk_deadzone(self, setpoint, jerk, measurement, speed):
     return 0.0
 
@@ -121,6 +124,7 @@ class HKGShapedTorquePolicy:
     selected_friction = friction_scale * parent.friction(error + JERK_GAIN * friction_jerk, deadzone, threshold, cs, setpoint)
     friction = auto_stages.apply_selected_friction(parent, cs, setpoint, float(selected_friction),
       active=active, limited=safety_limited or curvature_limited, curvature_limited=curvature_limited)
+    friction = self.shape_friction_compensation(friction, setpoint)
     if cs.vEgo < self.low_speed_reset_threshold:
       parent.pid.reset()
     freeze = safety_limited or cs.steeringPressed or cs.vEgo < self.low_speed_reset_threshold or unwind

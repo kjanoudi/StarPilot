@@ -72,7 +72,10 @@ def test_actual_selected_controller_output_and_inactive_recovery(topology):
   feedback = event.init('starpilotLateralState')
   feedback.palisadeDiagnostic = policy.palisade_diagnostic
   diagnostic = feedback.palisadeDiagnostic
-  assert abs(diagnostic.frictionCompensation) > 0.001
+  if topology == 'hdaii':
+    assert diagnostic.frictionCompensation == 0.
+  else:
+    assert abs(diagnostic.frictionCompensation) > 0.001
   assert trace.f == pytest.approx(diagnostic.feedforwardBeforeFriction + diagnostic.frictionCompensation, abs=1e-7)
   assert trace.output / diagnostic.torqueBeforeOutputShaping < 1.
   controller.update(True, state, vm, parameters, True, .0002, False, .2)
@@ -89,6 +92,28 @@ def test_actual_selected_controller_output_and_inactive_recovery(topology):
   assert policy.palisade_diagnostic is None
   state.steeringPressed = False
   assert math.isfinite(controller.update(True, state, vm, parameters, False, .0002, False, .2)[0])
+
+
+@pytest.mark.parametrize('direction', [-1, 1])
+def test_hdaii_friction_taper_preserves_compensation_in_turns(direction):
+  cp = topology_params('hdaii')
+  ci = interfaces[cp.carFingerprint](cp)
+  candidate = LatControlTorque(cp.as_reader(), ci, .01)
+  baseline = LatControlTorque(cp.as_reader(), ci, .01)
+  baseline.starpilot_extension.policy.taper_center_friction = False
+  vm = VehicleModel(cp)
+  state = SimpleNamespace(vEgo=15., steeringAngleDeg=0., steeringPressed=False)
+  parameters = log.VehicleParameters.new_message(angleOffsetDeg=0., roll=0.)
+  for acceleration, proportion in ((0.06, 0.), (0.19, 0.5), (0.45, 1.)):
+    curvature = direction * acceleration / state.vEgo**2
+    for controller in (candidate, baseline):
+      for _ in range(300):
+        torque, _, _ = controller.update(True, state, vm, parameters, False, curvature, False, .2)
+      assert math.isfinite(torque)
+    original = baseline.starpilot_extension.policy.palisade_diagnostic['frictionCompensation']
+    tapered = candidate.starpilot_extension.policy.palisade_diagnostic['frictionCompensation']
+    assert abs(original) > .001
+    assert tapered == pytest.approx(original * proportion, abs=1e-6)
 
 
 def test_unrelated_or_unadmitted_profiles_cannot_select_palisade():
