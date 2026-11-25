@@ -116,6 +116,31 @@ def test_hdaii_friction_taper_preserves_compensation_in_turns(direction):
     assert tapered == pytest.approx(original * proportion, abs=1e-6)
 
 
+@pytest.mark.parametrize('topology,speed,acceleration,p_scale', [
+  ('hdaii', 15., 0., .5),
+  ('hdaii', 15., .45, 1.),
+  ('hdaii', 11.176, 0., .75),
+  ('hdaii', 29., 0., 1.),
+  ('hdai', 15., 0., 1.),
+])
+def test_proportional_taper_keeps_integral_and_turn_preview(topology, speed, acceleration, p_scale):
+  cp = topology_params(topology)
+  ci = interfaces[cp.carFingerprint](cp)
+  candidate = LatControlTorque(cp.as_reader(), ci, .01)
+  baseline = LatControlTorque(cp.as_reader(), ci, .01)
+  baseline.starpilot_extension.policy.proportional_scale = lambda *_: 1.
+  vm = VehicleModel(cp)
+  state = SimpleNamespace(vEgo=speed, steeringAngleDeg=3., steeringPressed=False)
+  parameters = log.VehicleParameters.new_message(angleOffsetDeg=0., roll=0.)
+  curvature = acceleration / speed**2
+  _, _, original = baseline.update(True, state, vm, parameters, False, curvature, False, .2)
+  _, _, tapered = candidate.update(True, state, vm, parameters, False, curvature, False, .2)
+  assert abs(original.p) > .001 and abs(original.i) > .00001
+  assert tapered.p == pytest.approx(original.p * p_scale, abs=1e-6)
+  assert tapered.i == original.i
+  assert tapered.f == original.f
+
+
 def test_unrelated_or_unadmitted_profiles_cannot_select_palisade():
   cp = interfaces[CAR.HYUNDAI_PALISADE].get_non_essential_params(CAR.HYUNDAI_PALISADE)
   for field in ('passive', 'dashcamOnly', 'notCar'):

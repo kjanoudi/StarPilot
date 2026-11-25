@@ -1,5 +1,6 @@
 import numpy as np
 
+from opendbc.car.common.conversions import Conversions as CV
 from opendbc.car.hyundai.values import CAR, HyundaiFlags
 from openpilot.starpilot.lateral import palisade_shaping as shaping
 from openpilot.starpilot.lateral.hkg_torque_policy import HKGShapedTorquePolicy, supported_torque_cp
@@ -7,6 +8,7 @@ from openpilot.starpilot.lateral.hkg_torque_policy import HKGShapedTorquePolicy,
 
 PALISADE_CARS = frozenset((CAR.HYUNDAI_PALISADE, CAR.HYUNDAI_PALISADE_2023,))
 FRICTION_TAPER_ACCEL = (.08, .30)
+MID_SPEED_TAPER_MPS = tuple(mph * CV.MPH_TO_MS for mph in (20., 30., 40., 50.))
 
 
 def supported_cp(cp):
@@ -35,6 +37,13 @@ class PalisadeTorquePolicy(HKGShapedTorquePolicy):
     if not self.taper_center_friction:
       return value
     return value * float(np.interp(abs(setpoint), FRICTION_TAPER_ACCEL, (0., 1.)))
+
+  def proportional_scale(self, setpoint, future, speed):
+    if not self.taper_center_friction:
+      return 1.
+    speed_weight = np.interp(speed, MID_SPEED_TAPER_MPS, (0., 1., 1., 0.))
+    center_weight = np.interp(max(abs(setpoint), abs(future)), FRICTION_TAPER_ACCEL, (1., 0.))
+    return 1. - 0.5 * float(speed_weight * center_weight)
 
   def output(self, value, setpoint, speed):
     return value * shaping.get_palisade_center_output_scale(setpoint, speed)

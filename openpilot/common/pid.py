@@ -41,9 +41,9 @@ class PIDController:
     self.pos_limit = pos_limit
     self.neg_limit = neg_limit
 
-  def update(self, error, error_rate=0.0, speed=0.0, feedforward=0., freeze_integrator=False):
+  def update(self, error, error_rate=0.0, speed=0.0, feedforward=0., freeze_integrator=False, *, proportional_scale=1.):
     self.speed = speed
-    self.p = self.k_p * float(error)
+    self.p = (self.k_p * proportional_scale) * float(error)
     self.d = self.k_d * error_rate
     self.f = feedforward
 

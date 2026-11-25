@@ -74,6 +74,9 @@ class HKGShapedTorquePolicy:
   def pid_error_context(self, error):
     return error
 
+  def proportional_scale(self, setpoint, future, speed):
+    return 1.
+
   def output_context(self, value, setpoint, jerk, measurement, speed):
     return self.output(value, setpoint, speed)
 
@@ -129,8 +132,10 @@ class HKGShapedTorquePolicy:
       parent.pid.reset()
     freeze = safety_limited or cs.steeringPressed or cs.vEgo < self.low_speed_reset_threshold or unwind
     pid_log.error = float(self.pid_error_context(error))
+    proportional_scale = self.proportional_scale(setpoint, future, cs.vEgo)
     output = parent.torque_from_lateral_accel(
-      parent.pid.update(pid_log.error, error_rate=-rate, speed=cs.vEgo, feedforward=ff + friction, freeze_integrator=freeze), parent.torque_params
+      parent.pid.update(pid_log.error, error_rate=-rate, speed=cs.vEgo, feedforward=ff + friction,
+                        freeze_integrator=freeze, proportional_scale=proportional_scale), parent.torque_params
     )
     output = apply_turn_assist(parent, cs, vm, params, curvature, output)
     if self.LOG_PALISADE_DIAGNOSTIC:
